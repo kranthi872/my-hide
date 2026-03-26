@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Calculator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background:#000;
+  font-family:'Inter',sans-serif;
+  height:100vh;
+  overflow:hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.screen { display:none; width:100%; max-width:420px; height:100vh; flex-direction:column; }
+.screen.active { display:flex; }
+
+/* ══ SETUP ══ */
+#setup-screen {
+  background:#0d0d0d;
+  align-items:center;
+  justify-content:center;
+  padding:40px 30px;
+}
+.setup-icon { font-size:56px; margin-bottom:20px; }
+.setup-title { font-size:26px; font-weight:700; color:#fff; margin-bottom:8px; }
+.setup-sub { font-size:14px; color:#666; text-align:center; margin-bottom:32px; line-height:1.5; max-width:260px; }
+.pin-dots { display:flex; gap:16px; justify-content:center; margin-bottom:32px; }
+.pin-dot { width:14px; height:14px; border-radius:50%; border:2px solid #444; background:transparent; transition:all 0.15s; }
+.pin-dot.on { background:#fff; border-color:#fff; }
+.numpad { display:grid; grid-template-columns:repeat(3, 72px); gap:14px; }
+.nkey {
+  width:72px; height:72px; border-radius:50%;
+  border:none; background:#1a1a1a; color:#fff;
+  font-size:22px; font-weight:600; cursor:pointer;
+  font-family:'Inter',sans-serif; transition:background 0.1s;
+  display:flex; align-items:center; justify-content:center;
+}
+.nkey:active { background:#333; }
+.nkey.del { background:transparent; color:#666; font-size:20px; }
+.nkey.del:active { color:#fff; }
+.setup-err { margin-top:20px; font-size:13px; color:#ff4444; min-height:18px; text-align:center; }
+
+/* ══ CALCULATOR ══ */
+#calc-screen { background:#000; }
+.calc-display {
+  flex:1; display:flex; flex-direction:column;
+  justify-content:flex-end; align-items:flex-end;
+  padding:20px 24px 28px;
+}
+.hint-row { display:flex; gap:8px; margin-bottom:12px; min-height:12px; }
+.hdot {
+  width:8px; height:8px; border-radius:50%;
+  background:#e94560; opacity:0; transform:scale(0);
+  transition:all 0.2s cubic-bezier(.34,1.56,.64,1);
+}
+.hdot.on { opacity:1; transform:scale(1); }
+.calc-expr { font-family:'Share Tech Mono',monospace; font-size:18px; color:#444; min-height:24px; text-align:right; width:100%; }
+.calc-num { font-family:'Share Tech Mono',monospace; font-size:72px; color:#fff; line-height:1; text-align:right; width:100%; word-break:break-all; }
+.calc-btns { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:#222; }
+.cb {
+  background:#1c1c1e; color:#fff; border:none;
+  font-family:'Share Tech Mono',monospace; font-size:24px;
+  padding:0; height:88px; cursor:pointer; transition:background 0.08s;
+}
+.cb:active { background:#3a3a3c; }
+.cb.fn { color:#8e8e93; font-size:20px; font-family:'Inter',sans-serif; font-weight:600; }
+.cb.op { color:#ff9f0a; background:#2c2c2e; }
+.cb.op:active { background:#ff9f0a; color:#000; }
+.cb.eq { background:#ff9f0a; color:#000; }
+.cb.eq:active { background:#cc7d00; }
+.cb.wide { grid-column:span 2; display:flex; align-items:center; justify-content:flex-start; padding-left:30px; }
+
+/* ══ VAULT ══ */
+#vault-screen { background:#111; }
+.vault-header {
+  background:#1a1a1a; padding:16px 20px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid #222; flex-shrink:0;
+}
+.vault-title { font-size:18px; font-weight:700; color:#fff; }
+.vbtn {
+  background:#2a2a2a; border:none; color:#fff;
+  width:36px; height:36px; border-radius:50%;
+  font-size:16px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.vbtn:active { background:#444; }
+.vault-body { flex:1; overflow-y:auto; padding:20px; }
+.apps-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.app-item {
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  cursor:pointer; position:relative; user-select:none;
+}
+.app-icon {
+  width:58px; height:58px; border-radius:14px;
+  display:flex; align-items:center; justify-content:center; font-size:26px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.4); transition:transform 0.1s;
+}
+.app-item:active .app-icon { transform:scale(0.88); }
+.app-label { font-size:10px; color:#aaa; font-weight:600; text-align:center; max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.app-del {
+  position:absolute; top:-5px; right:2px;
+  width:20px; height:20px; border-radius:50%;
+  background:#ff3b30; border:2px solid #111; color:#fff;
+  font-size:13px; font-weight:700; display:none;
+  align-items:center; justify-content:center; cursor:pointer; z-index:5; line-height:1;
+}
+.edit-mode .app-del { display:flex; }
+.edit-mode .app-icon { animation:jiggle 0.4s ease-in-out infinite; }
+@keyframes jiggle { 0%,100%{transform:rotate(-4deg)} 50%{transform:rotate(4deg)} }
+.app-item.over .app-icon { box-shadow:0 0 0 3px #ff9f0a; transform:scale(1.1); }
+.app-item.dragging { opacity:0.3; }
+.add-btn {
+  width:58px; height:58px; border-radius:14px;
+  border:2px dashed #333; background:transparent; color:#555;
+  font-size:28px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:all 0.2s;
+}
+.add-btn:active { border-color:#ff9f0a; color:#ff9f0a; }
+.empty-msg { text-align:center; color:#444; padding:60px 20px; font-size:14px; line-height:1.8; }
+.empty-msg .ei { font-size:40px; margin-bottom:12px; }
+
+/* ══ MODAL ══ */
+.modal { position:fixed; inset:0; background:rgba(0,0,0,0.8); display:none; align-items:flex-end; justify-content:center; z-index:100; }
+.modal.open { display:flex; }
+.modal-box { background:#1c1c1e; border-radius:20px 20px 0 0; padding:24px 24px 40px; width:100%; max-width:420px; animation:slideup 0.3s cubic-bezier(.34,1.2,.64,1); }
+@keyframes slideup { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.mhandle { width:36px; height:4px; background:#333; border-radius:2px; margin:0 auto 20px; }
+.mtitle { font-size:18px; font-weight:700; color:#fff; margin-bottom:18px; }
+.field { margin-bottom:14px; }
+.field label { font-size:12px; color:#666; font-weight:600; display:block; margin-bottom:6px; }
+.field input { width:100%; background:#2c2c2e; border:none; border-radius:10px; padding:12px 14px; color:#fff; font-size:15px; font-family:'Inter',sans-serif; outline:none; }
+.field input:focus { box-shadow:0 0 0 2px #ff9f0a; }
+.emoji-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.emo { width:38px; height:38px; border-radius:8px; background:#2c2c2e; border:2px solid transparent; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.emo.sel { border-color:#ff9f0a; background:#3a3a1a; }
+.color-row { display:flex; gap:10px; margin-top:6px; flex-wrap:wrap; }
+.col { width:28px; height:28px; border-radius:50%; cursor:pointer; border:3px solid transparent; transition:transform 0.1s; }
+.col.sel { border-color:#fff; transform:scale(1.2); }
+.modal-btns { display:flex; gap:10px; margin-top:20px; }
+.mbtn { flex:1; padding:13px; border-radius:12px; border:none; font-family:'Inter',sans-serif; font-size:15px; font-weight:700; cursor:pointer; }
+.mbtn.cancel { background:#2c2c2e; color:#888; }
+.mbtn.save { background:#ff9f0a; color:#000; flex:2; }
+
+/* ══ UTILS ══ */
+.toast { position:fixed; bottom:40px; left:50%; transform:translateX(-50%) translateY(80px); background:#1c1c1e; color:#fff; border:1px solid #333; padding:10px 20px; border-radius:40px; font-size:13px; font-weight:600; z-index:999; transition:transform 0.3s; white-space:nowrap; }
+.toast.show { transform:translateX(-50%) translateY(0); }
+.flashel { position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:9999; }
+.flashel.go { animation:fl 0.35s ease-out; }
+@keyframes fl { 0%{opacity:0.5} 100%{opacity:0} }
+</style>
+</head>
+<body>
+
+<div class="flashel" id="flash"></div>
+<div class="toast"   id="toast"></div>
+
+<!-- ══ SETUP SCREEN ══ -->
+<div class="screen active" id="setup-screen">
+  <div class="setup-icon">🔐</div>
+  <div class="setup-title" id="stitle">Create PIN</div>
+  <div class="setup-sub"   id="ssub">Set a 4-digit secret PIN to protect your vault</div>
+  <div class="pin-dots" id="sdots">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="numpad">
+    <button class="nkey" onclick="SK(1)">1</button>
+    <button class="nkey" onclick="SK(2)">2</button>
+    <button class="nkey" onclick="SK(3)">3</button>
+    <button class="nkey" onclick="SK(4)">4</button>
+    <button class="nkey" onclick="SK(5)">5</button>
+    <button class="nkey" onclick="SK(6)">6</button>
+    <button class="nkey" onclick="SK(7)">7</button>
+    <button class="nkey" onclick="SK(8)">8</button>
+    <button class="nkey" onclick="SK(9)">9</button>
+    <button class="nkey" style="visibility:hidden"></button>
+    <button class="nkey" onclick="SK(0)">0</button>
+    <button class="nkey del" onclick="SD()">⌫</button>
+  </div>
+  <div class="setup-err" id="serr"></div>
+</div>
+
+<!-- ══ CALCULATOR SCREEN ══ -->
+<div class="screen" id="calc-screen">
+  <div class="calc-display">
+    <div class="hint-row" id="hints"></div>
+    <div class="calc-expr" id="cexpr"></div>
+    <div class="calc-num"  id="cnum">0</div>
+  </div>
+  <div class="calc-btns">
+    <button class="cb fn" onclick="CP('AC')">AC</button>
+    <button class="cb fn" onclick="CP('+/-')">+/-</button>
+    <button class="cb fn" onclick="CP('%')">%</button>
+    <button class="cb op" onclick="CP('/')">÷</button>
+    <button class="cb"    onclick="CP(7)">7</button>
+    <button class="cb"    onclick="CP(8)">8</button>
+    <button class="cb"    onclick="CP(9)">9</button>
+    <button class="cb op" onclick="CP('*')">×</button>
+    <button class="cb"    onclick="CP(4)">4</button>
+    <button class="cb"    onclick="CP(5)">5</button>
+    <button class="cb"    onclick="CP(6)">6</button>
+    <button class="cb op" onclick="CP('-')">−</button>
+    <button class="cb"    onclick="CP(1)">1</button>
+    <button class="cb"    onclick="CP(2)">2</button>
+    <button class="cb"    onclick="CP(3)">3</button>
+    <button class="cb op" onclick="CP('+')">+</button>
+    <button class="cb wide" onclick="CP(0)">0</button>
+    <button class="cb"    onclick="CP('.')">.</button>
+    <button class="cb eq" onclick="CP('=')">=</button>
+  </div>
+</div>
+
+<!-- ══ VAULT SCREEN ══ -->
+<div class="screen" id="vault-screen">
+  <div class="vault-header">
+    <div class="vault-title">🔐 My Vault</div>
+    <div style="display:flex;gap:8px">
+      <button class="vbtn" id="editbtn" onclick="toggleEdit()">✏️</button>
+      <button class="vbtn" onclick="lockVault()">🔒</button>
+    </div>
+  </div>
+  <div class="vault-body">
+    <div id="emptyMsg" class="empty-msg">
+      <div class="ei">📱</div>
+      Tap <b style="color:#fff">+</b> to add your first hidden app
+    </div>
+    <div class="apps-grid" id="grid">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px" id="addbtnwrap">
+        <button class="add-btn" onclick="openModal()">+</button>
+        <div class="app-label" style="color:#555">Add</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD MODAL ══ -->
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <div class="mhandle"></div>
+    <div class="mtitle">Add Hidden App</div>
+    <div class="field">
+      <label>App Name</label>
+      <input id="iname" type="text" placeholder="e.g. Instagram, Notes">
+    </div>
+    <div class="field">
+      <label>App URL (optional)</label>
+      <input id="iurl" type="url" placeholder="https://...">
+    </div>
+    <div class="field">
+      <label>Icon</label>
+      <div class="emoji-row" id="erow"></div>
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="color-row" id="crow"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn save"   onclick="saveApp()">Add App</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════
+function save(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+function get(k,d){ try{ const v=localStorage.getItem(k); return v!==null?JSON.parse(v):d; }catch(e){return d;} }
+function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+let _tt;
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),2200); }
+function flash(){ const f=document.getElementById('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+
+// ══════════════════════════════════════
+// APP STATE
+// ══════════════════════════════════════
+let PIN  = get('xpin', null);   // null = not set yet. Stored as string like "8989"
+let APPS = get('xapps', []);
+let editMode = false;
+let selEmoji = '📱', selColor = '#e94560';
+
+const EMOJIS = ['📱','🎮','📷','🎵','💌','📝','💸','🍷','🎬','📂','🔑','💎','🌐','📊','🗺️','🧠','👤','🎯','🔞','🕵️'];
+const COLORS  = ['#e94560','#ff9f0a','#4ade80','#53d8fb','#a78bfa','#f97316','#ec4899','#06b6d4','#ef4444','#fbbf24'];
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+(function init(){
+  // Build emoji picker
+  const er = document.getElementById('erow');
+  EMOJIS.forEach(e => {
+    const b = document.createElement('button');
+    b.className = 'emo' + (e===selEmoji?' sel':'');
+    b.textContent = e;
+    b.onclick = () => { selEmoji=e; document.querySelectorAll('.emo').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); };
+    er.appendChild(b);
+  });
+  // Build color picker
+  const cr = document.getElementById('crow');
+  COLORS.forEach((c,i) => {
+    const b = document.createElement('button');
+    b.className = 'col'+(i===0?' sel':'');
+    b.style.background = c;
+    b.onclick = () => { selColor=c; document.querySelectorAll('.col').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); };
+    cr.appendChild(b);
+  });
+
+  if (PIN !== null) {
+    // PIN already set — go straight to calculator
+    showScreen('calc-screen');
+  } else {
+    // First time — show setup
+    showScreen('setup-screen');
+  }
+})();
+
+// ══════════════════════════════════════
+// SETUP — SET PIN ONCE
+// ══════════════════════════════════════
+let sStep = 'first';   // 'first' or 'confirm'
+let sBuf  = '';
+let sFirst = '';
+
+function SK(d) {  // setup key press
+  if (sBuf.length >= 4) return;
+  sBuf += String(d);
+  refreshSDots();
+  if (sBuf.length < 4) return;
+
+  setTimeout(() => {
+    if (sStep === 'first') {
+      sFirst = sBuf; sBuf = ''; sStep = 'confirm';
+      document.getElementById('stitle').textContent = 'Confirm PIN';
+      document.getElementById('ssub').textContent   = 'Enter the same PIN again';
+      refreshSDots();
+      document.getElementById('serr').textContent = '';
+    } else {
+      if (sBuf === sFirst) {
+        PIN = sBuf;
+        save('xpin', PIN);
+        flash();
+        toast('✅ Vault ready! Use calculator to unlock.');
+        setTimeout(() => showScreen('calc-screen'), 500);
+      } else {
+        document.getElementById('serr').textContent = '❌ PINs don\'t match. Start over.';
+        sBuf = ''; sFirst = ''; sStep = 'first';
+        document.getElementById('stitle').textContent = 'Create PIN';
+        document.getElementById('ssub').textContent   = 'Set a 4-digit secret PIN to protect your vault';
+        refreshSDots();
+      }
+    }
+  }, 150);
+}
+
+function SD() {  // setup delete
+  sBuf = sBuf.slice(0,-1);
+  refreshSDots();
+}
+
+function refreshSDots() {
+  document.getElementById('sdots').querySelectorAll('.pin-dot')
+    .forEach((d,i) => d.classList.toggle('on', i < sBuf.length));
+}
+
+// ══════════════════════════════════════
+// CALCULATOR
+// ══════════════════════════════════════
+let cNum='0', cExpr='', cOp=null, cPrev=null, cEvaled=false;
+let pinTyped = '';   // digits typed since last AC / operator / = 
+
+function CP(k) {
+  if (typeof k === 'number') {
+    if (cEvaled) { cNum=''; cEvaled=false; pinTyped=''; }
+    if (cNum==='0') cNum='';
+    cNum += String(k);
+    pinTyped += String(k);
+    refreshHints();
+    return renderCalc();
+  }
+  if (k==='.') {
+    if (cNum.includes('.')) return;
+    if (cEvaled) { cNum='0'; cEvaled=false; }
+    cNum+='.'; pinTyped='';
+    return renderCalc();
+  }
+  if (k==='AC') {
+    cNum='0'; cExpr=''; cOp=null; cPrev=null; cEvaled=false; pinTyped='';
+    refreshHints(); return renderCalc();
+  }
+  if (k==='+/-') { cNum=String(parseFloat(cNum)*-1); return renderCalc(); }
+  if (k==='%')   { cNum=String(parseFloat(cNum)/100); return renderCalc(); }
+
+  if (k==='+'||k==='-'||k==='*'||k==='/') {
+    cPrev=cNum; cOp=k;
+    cExpr=cNum+' '+fmtOp(k);
+    cNum='0'; cEvaled=false; pinTyped='';
+    refreshHints(); return renderCalc();
+  }
+
+  if (k==='=') {
+    // ── CHECK PIN ──
+    // User must type exactly the PIN digits then press =
+    // pinTyped holds all digits typed since last reset
+    // We check if the last 4 chars of pinTyped equals PIN, and no operator was used
+    const p = String(PIN||'');
+    const t = pinTyped;
+
+    if (p && cOp===null && t.length>=4 && t.slice(-4)===p) {
+      // UNLOCK
+      pinTyped=''; refreshHints();
+      flash();
+      setTimeout(() => {
+        showScreen('vault-screen');
+        renderApps();
+        cNum='0'; cExpr=''; cOp=null; cPrev=null; cEvaled=false;
+        renderCalc();
+      }, 250);
+      return;
+    }
+
+    // Normal =
+    if (cOp && cPrev!==null) {
+      const a=parseFloat(cPrev), b=parseFloat(cNum);
+      let r=0;
+      if(cOp==='+') r=a+b;
+      else if(cOp==='-') r=a-b;
+      else if(cOp==='*') r=a*b;
+      else if(cOp==='/') r=b!==0?a/b:0;
+      cExpr=cPrev+' '+fmtOp(cOp)+' '+cNum+' =';
+      cNum=String(+r.toFixed(10));
+      cOp=null; cPrev=null; cEvaled=true;
+    }
+    pinTyped=''; refreshHints();
+    return renderCalc();
+  }
+}
+
+function fmtOp(o){ return o==='*'?'×':o==='/'?'÷':o==='-'?'−':o; }
+
+function renderCalc() {
+  document.getElementById('cnum').textContent  = cNum||'0';
+  document.getElementById('cexpr').textContent = cExpr;
+}
+
+function refreshHints() {
+  const row = document.getElementById('hints');
+  row.innerHTML='';
+  const n = Math.min(pinTyped.length, 4);
+  for(let i=0;i<4;i++){
+    const d=document.createElement('div');
+    d.className='hdot'+(i<n?' on':'');
+    row.appendChild(d);
+  }
+}
+
+// ══════════════════════════════════════
+// VAULT
+// ══════════════════════════════════════
+function lockVault() {
+  editMode=false;
+  document.getElementById('editbtn').textContent='✏️';
+  document.getElementById('grid').classList.remove('edit-mode');
+  showScreen('calc-screen');
+  cNum='0'; cExpr=''; cOp=null; cPrev=null; pinTyped='';
+  renderCalc(); refreshHints();
+}
+
+function toggleEdit() {
+  editMode=!editMode;
+  document.getElementById('grid').classList.toggle('edit-mode',editMode);
+  document.getElementById('editbtn').textContent=editMode?'✅':'✏️';
+}
+
+function renderApps() {
+  const grid=document.getElementById('grid');
+  const addbtn=document.getElementById('addbtnwrap');
+  // Remove all app items
+  grid.querySelectorAll('.app-item').forEach(el=>el.remove());
+  document.getElementById('emptyMsg').style.display=APPS.length?'none':'block';
+
+  APPS.forEach((app,i) => {
+    const wrap=document.createElement('div');
+    wrap.className='app-item';
+    wrap.draggable=true;
+    wrap.dataset.i=String(i);
+
+    const icon=document.createElement('div');
+    icon.className='app-icon';
+    icon.style.background=app.color;
+    icon.textContent=app.emoji;
+    icon.onclick=()=>{
+      if(editMode) return;
+      if(app.url){ window.open(app.url,'_blank'); toast('Opening '+app.name+'…'); }
+    };
+
+    const lbl=document.createElement('div');
+    lbl.className='app-label';
+    lbl.textContent=app.name;
+
+    const del=document.createElement('div');
+    del.className='app-del';
+    del.textContent='×';
+    del.onclick=e=>{ e.stopPropagation(); APPS.splice(i,1); save('xapps',APPS); renderApps(); toast('Removed'); };
+
+    wrap.appendChild(icon);
+    wrap.appendChild(lbl);
+    wrap.appendChild(del);
+
+    // Desktop drag
+    wrap.addEventListener('dragstart', e=>{ e.dataTransfer.effectAllowed='move'; dIdx=i; setTimeout(()=>wrap.classList.add('dragging'),0); });
+    wrap.addEventListener('dragend',   ()=>{ wrap.classList.remove('dragging'); grid.querySelectorAll('.app-item').forEach(x=>x.classList.remove('over')); });
+    wrap.addEventListener('dragover',  e=>{ e.preventDefault(); wrap.classList.add('over'); });
+    wrap.addEventListener('dragleave', ()=>wrap.classList.remove('over'));
+    wrap.addEventListener('drop', e=>{ e.preventDefault(); wrap.classList.remove('over'); if(dIdx!==null&&dIdx!==i){ const m=APPS.splice(dIdx,1)[0]; APPS.splice(i,0,m); save('xapps',APPS); renderApps(); } dIdx=null; });
+
+    // Touch drag
+    wrap.addEventListener('touchstart', onTS, {passive:true});
+    wrap.addEventListener('touchmove',  onTM, {passive:false});
+    wrap.addEventListener('touchend',   onTE);
+
+    grid.insertBefore(wrap, addbtn);
+  });
+}
+
+// ── Drag state ──
+let dIdx=null, tClone=null, tSrc=null, tOver=null;
+
+function onTS(e){
+  tSrc=parseInt(this.dataset.i);
+  const t=e.touches[0], r=this.getBoundingClientRect();
+  tClone=this.cloneNode(true);
+  Object.assign(tClone.style,{
+    position:'fixed',zIndex:'9999',pointerEvents:'none',opacity:'0.85',
+    width:r.width+'px',height:r.height+'px',
+    left:(t.clientX-r.width/2)+'px',top:(t.clientY-r.height/2)+'px',
+    transform:'scale(1.1)',transition:'none'
+  });
+  document.body.appendChild(tClone);
+  this.style.opacity='0.3';
+}
+function onTM(e){
+  e.preventDefault(); if(!tClone) return;
+  const t=e.touches[0];
+  tClone.style.left=(t.clientX-tClone.offsetWidth/2)+'px';
+  tClone.style.top=(t.clientY-tClone.offsetHeight/2)+'px';
+  tClone.style.display='none';
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  tClone.style.display='';
+  const item=el&&el.closest('.app-item[data-i]');
+  if(tOver&&tOver!==item) tOver.classList.remove('over');
+  if(item&&item.dataset.i!=tSrc){ item.classList.add('over'); tOver=item; } else tOver=null;
+}
+function onTE(){
+  if(tClone){tClone.remove();tClone=null;}
+  this.style.opacity='';
+  if(tOver){
+    tOver.classList.remove('over');
+    const to=parseInt(tOver.dataset.i);
+    if(tSrc!==null&&tSrc!==to){ const m=APPS.splice(tSrc,1)[0]; APPS.splice(to,0,m); save('xapps',APPS); renderApps(); toast('Reordered!'); }
+    tOver=null;
+  }
+  tSrc=null;
+}
+
+// ══════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════
+function openModal(){
+  document.getElementById('iname').value='';
+  document.getElementById('iurl').value='';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('open'); }
+function saveApp(){
+  const name=document.getElementById('iname').value.trim();
+  if(!name){toast('Enter an app name');return;}
+  const url=document.getElementById('iurl').value.trim();
+  APPS.push({name,url,emoji:selEmoji,color:selColor});
+  save('xapps',APPS);
+  closeModal();
+  renderApps();
+  toast('✅ App added!');
+}
+document.getElementById('modal').onclick=function(e){ if(e.target===this) closeModal(); };
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js')
+    .then(() => console.log("Service Worker Registered"));
+}}
+
+</script>
+</body>
+</html>
